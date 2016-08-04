@@ -82,8 +82,9 @@ public:
 
       // All neighbors must be in the tree.
       auto ti = get_parent(g,i), tj = get_parent(g,j);
-      CHECK(!(ti >= 0 && tj < 0)) << "Error! ti=" << ti << ", tj=" << tj;
-      CHECK(!(tj >= 0 && ti < 0)) << "Error! ti=" << ti << ", tj=" << tj;
+			//FIXME: this check doesnot work for directed graphs
+      //CHECK(!(ti >= 0 && tj < 0)) << "Error! ti=" << ti << ", tj=" << tj;
+      //CHECK(!(tj >= 0 && ti < 0)) << "Error! ti=" << ti << ", tj=" << tj;
       if (ti < 0) // both i & j have the same sign
         return;
 

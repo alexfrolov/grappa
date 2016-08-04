@@ -39,7 +39,11 @@
 #include <Grappa.hpp>
 #include "common.hpp"
 
+#include <boost/random/linear_congruential.hpp>
+#include <boost/random/uniform_int.hpp>
+
 DEFINE_bool( metrics, false, "Dump metrics");
+DEFINE_bool( directed, true, "Graph type (directed by default)");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
@@ -67,8 +71,17 @@ int main(int argc, char* argv[]) {
     
     GRAPPA_TIME_REGION(tuple_time) {
       if (FLAGS_path.empty()) {
+				uint64_t seed64 = 12345;
+				// Seed general-purpose RNG
+				boost::rand48 gen, synch_gen;
+				gen.seed(seed64);
+				synch_gen.seed(seed64);
+				boost::uniform_int<uint64_t> rand_64(0, std::numeric_limits<uint64_t>::max());
+				uint64_t a = rand_64(gen);
+				uint64_t b = rand_64(gen);
+
         int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
-        tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+        tg = TupleGraph::Kronecker(FLAGS_scale, NE, a, b);
       } else {
         LOG(INFO) << "loading " << FLAGS_path;
         tg = TupleGraph::Load(FLAGS_path, FLAGS_format);
@@ -80,7 +93,12 @@ int main(int argc, char* argv[]) {
     double t = walltime();
     
     // construct the compact graph representation (roughly CSR)
-    auto g = G::Undirected( tg );
+
+		GlobalAddress<G> g;
+		if (FLAGS_directed)
+			g = G::Directed( tg );
+		else
+    	g = G::Undirected( tg );
     
     construction_time = (walltime()-t);
     LOG(INFO) << construction_time;
