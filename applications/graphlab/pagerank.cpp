@@ -38,7 +38,12 @@
 #include <Grappa.hpp>
 #include "graphlab.hpp"
 
+#include <boost/random/linear_congruential.hpp>
+#include <boost/random/uniform_int.hpp>
+
 DEFINE_bool( metrics, false, "Dump metrics");
+DEFINE_bool( directed, true, "Graph type (directed by default)");
+DEFINE_bool( strongscale, true, "strong (default) or weak scale is used");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
@@ -52,6 +57,20 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, init_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, total_time, 0);
+
+inline unsigned int __log2p2(unsigned int n) {
+	  int l = 0;
+		  while (n >>= 1) l++;
+			  return l;
+}
+
+typedef double time_type;
+std::string print_time(time_type t)
+{
+	std::ostringstream out;
+	out << std::setiosflags(std::ios::fixed) << std::setprecision(2) << t;
+	return out.str();
+}
 
 const double RESET_PROB = 0.15;
 DEFINE_double(tolerance, 1.0E-2, "tolerance");
@@ -104,8 +123,21 @@ int main(int argc, char* argv[]) {
     
     GRAPPA_TIME_REGION(tuple_time) {
       if (FLAGS_path.empty()) {
-        int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
-        tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+				uint64_t seed64 = 12345;
+				// Seed general-purpose RNG
+				boost::rand48 gen, synch_gen;
+				gen.seed(seed64);
+				synch_gen.seed(seed64);
+				boost::uniform_int<uint64_t> rand_64(0, std::numeric_limits<uint64_t>::max());
+				uint64_t a = rand_64(gen);
+				uint64_t b = rand_64(gen);
+
+        int64_t NE = (1L << 
+						(FLAGS_strongscale == true ? FLAGS_scale : FLAGS_scale + __log2p2(cores()))) * FLAGS_edgefactor;
+        tg = TupleGraph::Kronecker(
+						FLAGS_strongscale == true ? FLAGS_scale : FLAGS_scale + __log2p2(cores()),
+						NE, a, b);
+
       } else {
         LOG(INFO) << "loading " << FLAGS_path;
         tg = TupleGraph::Load(FLAGS_path, FLAGS_format);
@@ -115,7 +147,12 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "constructing graph";
     t = walltime();
     
-    auto g = G::create(tg, true);
+    //auto g = G::create(tg, true);
+		GlobalAddress<G> g;
+		if (FLAGS_directed)
+			g = G::Directed( tg );
+		else
+    	g = G::Undirected( tg );
     
     GRAPPA_TIME_REGION(init_time) {
       // TODO: random init
@@ -158,6 +195,7 @@ int main(int argc, char* argv[]) {
     Metrics::stop_tracing();
     
     LOG(INFO) << "-- pagerank done";
+    LOG(INFO) << "[Final] CPU time used " << print_time(total_time.value()) << " seconds\n";
     
     
     if (FLAGS_metrics) Metrics::merge_and_print();
@@ -173,6 +211,8 @@ int main(int argc, char* argv[]) {
     }
     
     g->destroy();
+
+    //LOG(INFO) << "[Final] CPU time used " << print_time(total_time.value()) << " seconds\n";
   });
   finalize();
 }
