@@ -44,6 +44,7 @@
 
 DEFINE_bool( metrics, false, "Dump metrics");
 DEFINE_bool( directed, true, "Graph type (directed by default)");
+DEFINE_bool( strongscale, true, "strong (default) or weak scale is used");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
@@ -60,6 +61,20 @@ GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_mteps, 0);
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, total_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, bfs_nedge, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
+
+inline unsigned int __log2p2(unsigned int n) {
+	  int l = 0;
+		  while (n >>= 1) l++;
+			  return l;
+}
+
+typedef double time_type;
+std::string print_time(time_type t)
+{
+	std::ostringstream out;
+	out << std::setiosflags(std::ios::fixed) << std::setprecision(2) << t;
+	return out.str();
+}
 
 int64_t nedge_traversed;
 
@@ -80,8 +95,11 @@ int main(int argc, char* argv[]) {
 				uint64_t a = rand_64(gen);
 				uint64_t b = rand_64(gen);
 
-        int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
-        tg = TupleGraph::Kronecker(FLAGS_scale, NE, a, b);
+        int64_t NE = (1L << 
+						(FLAGS_strongscale == true ? FLAGS_scale : FLAGS_scale + __log2p2(cores()))) * FLAGS_edgefactor;
+        tg = TupleGraph::Kronecker(
+						FLAGS_strongscale == true ? FLAGS_scale : FLAGS_scale + __log2p2(cores()),
+						NE, a, b);
       } else {
         LOG(INFO) << "loading " << FLAGS_path;
         tg = TupleGraph::Load(FLAGS_path, FLAGS_format);
@@ -108,6 +126,8 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "\n" << bfs_nedge << "\n" << total_time << "\n" << bfs_mteps;
     if (FLAGS_metrics) Metrics::merge_and_print();
     Metrics::merge_and_dump_to_file();
+
+    LOG(INFO) << "[Final] CPU time used " << print_time(total_time.value()) << " seconds, " << print_time(bfs_mteps.value()) << " MTEPS\n";
   });
   finalize();
 }

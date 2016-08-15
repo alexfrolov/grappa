@@ -13,6 +13,6 @@ struct PagerankData {
   double * weights;
   double v[2];
 };
-using PagerankVertex = Grappa::Vertex<PagerankData>;
+using PagerankVertex = Grappa::Vertex<PagerankData, Grappa::Empty>;
 
 void spmv_mult(GlobalAddress<Grappa::Graph<PagerankVertex>> g, vindex x, vindex y);
